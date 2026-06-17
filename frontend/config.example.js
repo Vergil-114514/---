@@ -1,13 +1,13 @@
 window.SMART_CONE_CONFIG = {
   amap: {
-    key: "b62988f5dbf038436c72e383e5169abf",
-    securityJsCode: "818e14cc0255b621567ee6d0bcb23709",
+    key: "YOUR_AMAP_WEB_JS_KEY",
+    securityJsCode: "YOUR_AMAP_SECURITY_JS_CODE",
     version: "2.0",
     plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.Geocoder"]
   },
   gateway: {
-    wsUrl: "ws://localhost:8080/ws",
-    httpBaseUrl: "http://localhost:8080"
+    wsUrl: "./ws",
+    httpBaseUrl: "./api"
   },
   scene: {
     name: "重庆大学虎溪校区交叉创新中心",

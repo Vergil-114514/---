@@ -8,8 +8,8 @@
       plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.Geocoder"]
     },
     gateway: {
-      wsUrl: "ws://localhost:8080/ws",
-      httpBaseUrl: "http://localhost:8080"
+      wsUrl: "./ws",
+      httpBaseUrl: "./api"
     },
     scene: {
       name: "重庆大学虎溪校区交叉创新中心",
@@ -80,7 +80,7 @@
     clearLogBtn: document.getElementById("clearLogBtn")
   };
 
-  const config = mergeConfig(DEFAULT_CONFIG, window.SMART_CONE_CONFIG || {});
+  const config = normalizeConfig(mergeConfig(DEFAULT_CONFIG, window.SMART_CONE_CONFIG || {}));
   const state = {
     dataMode: "sim",
     map: null,
@@ -116,6 +116,39 @@
       devices: Array.isArray(override.devices) && override.devices.length ? override.devices : base.devices
     };
     return merged;
+  }
+
+  function normalizeConfig(configValue) {
+    return {
+      ...configValue,
+      gateway: {
+        ...configValue.gateway,
+        wsUrl: resolveGatewayUrl(configValue.gateway.wsUrl, "ws"),
+        httpBaseUrl: resolveGatewayUrl(configValue.gateway.httpBaseUrl, "http")
+      }
+    };
+  }
+
+  function resolveGatewayUrl(value, protocolType) {
+    if (!value) return "";
+    const text = String(value).trim();
+    const isAbsoluteWs = /^wss?:\/\//i.test(text);
+    const isAbsoluteHttp = /^https?:\/\//i.test(text);
+    if (protocolType === "ws" && isAbsoluteWs) return text;
+    if (protocolType === "http" && isAbsoluteHttp) return text.replace(/\/$/, "");
+    if (window.location.protocol === "file:") return text;
+
+    try {
+      const url = new URL(text, window.location.href);
+      if (protocolType === "ws") {
+        url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return url.toString();
+      }
+      url.protocol = window.location.protocol === "https:" ? "https:" : "http:";
+      return url.toString().replace(/\/$/, "");
+    } catch (error) {
+      return text;
+    }
   }
 
   function boot() {
@@ -206,7 +239,7 @@
     els.currentSceneName.textContent = config.scene.name || "重庆大学虎溪校区交叉创新中心";
     els.mapScope.textContent = config.scene.sceneCenterQuery || "重庆大学虎溪校区学生交叉创新中心";
     els.gatewayUrl.textContent = config.gateway.wsUrl || "--";
-    els.sceneDescription.textContent = "UWB+GPS 融合坐标由网关输出，前端按 GCJ-02 坐标实时显示两只路锥。";
+    els.sceneDescription.textContent = "上位机直接输出最终 GCJ-02 坐标，前端只负责实时显示两只路锥。";
   }
 
   function setDataMode(mode) {
@@ -216,12 +249,12 @@
     els.dataModeLabel.textContent = mode === "sim" ? "模拟数据" : "真实数据";
     els.gatewayNote.textContent = mode === "sim"
       ? "当前使用模拟数据，结构与真实网关推送保持一致。"
-      : "当前连接本地网关，等待 cone.telemetry / uwb / gps / imu / tilt 事件。";
+      : "当前连接本地网关，等待 cone.telemetry / imu / tilt 事件。";
 
     if (mode === "sim") {
       disconnectGateway();
       startSimulation();
-      addLog("切换到模拟数据：开始回放双路锥融合定位与倾倒事件。");
+      addLog("切换到模拟数据：开始回放双路锥坐标与倾倒事件。");
     } else {
       stopSimulation();
       connectGateway(true);
@@ -404,19 +437,19 @@
 
     if (type === "cone.telemetry") updateConeFromTelemetry(payload);
     if (type === "fused.position") updateConePartial(payload.coneId, {
-      position: normalizePosition(payload.position || payload, payload),
+      position: normalizePosition(payload.position || payload, { ...payload, source: payload.source || "tcp_gateway" }),
       uwb: payload.uwb,
       gps: payload.gps,
       ts: payload.timestamp
     });
     if (type === "gps.position") updateConePartial(payload.coneId, {
       gps: payload,
-      position: normalizePosition(payload.position || payload, { source: "gps", accuracyM: payload.accuracyM }),
+      position: null,
       ts: payload.timestamp
     });
     if (type === "uwb.position") updateConePartial(payload.coneId, {
       uwb: payload,
-      position: normalizePosition(payload.position || payload, { source: "uwb", accuracyM: payload.accuracyM }),
+      position: null,
       ts: payload.timestamp
     });
     if (type === "imu.raw") updateConePartial(payload.coneId, { imu: normalizeImu(payload.imu || payload), ts: payload.timestamp });
@@ -432,10 +465,8 @@
     const coneId = payload.coneId || payload.id;
     if (!coneId || !state.cones.has(coneId)) return;
     const cone = state.cones.get(coneId);
-    const nextPosition = normalizePosition(payload.position, payload);
-    const tiltPatch = payload.tilt ? normalizeTilt(payload.tilt) : (payload.fallen !== undefined ? { fallen: Boolean(payload.fallen) } : {});
-    const imuPatch = payload.imu ? normalizeImu(payload.imu) : {};
-
+    const nextPosition = normalizePosition(payload.position, { ...payload, source: payload.source || "tcp_gateway" });
+    const nextTilt = normalizeTilt(payload.tilt || { fallen: payload.fallen });
     Object.assign(cone, {
       mode: payload.mode || cone.mode,
       online: payload.online !== undefined ? Boolean(payload.online) : cone.online,
@@ -443,8 +474,8 @@
       position: nextPosition || cone.position,
       uwb: { ...cone.uwb, ...(payload.uwb || {}) },
       gps: { ...cone.gps, ...(payload.gps || {}) },
-      imu: { ...cone.imu, ...imuPatch },
-      tilt: { ...cone.tilt, ...tiltPatch },
+      imu: { ...cone.imu, ...normalizeImu(payload.imu || {}) },
+      tilt: { ...cone.tilt, ...nextTilt },
       health: { ...cone.health, ...(payload.health || {}), lastSeenMs: Date.now() },
       ts: payload.ts || payload.timestamp || Date.now()
     });
@@ -487,10 +518,12 @@
       lng,
       lat,
       accuracyM: Number(position.accuracyM ?? payload.accuracyM ?? 1),
-      source: position.source || payload.source || "uwb_gps_fused",
+      source: position.source || payload.source || "tcp_gateway",
       stale: Boolean(position.stale || payload.stale)
     };
   }
+
+  // 位置稳定性改由上位机负责，前端仅按最终位置展示。
 
   function normalizeImu(imu) {
     return {
@@ -533,17 +566,68 @@
   }
 
   function runSimulationFrame() {
-    // 模拟模式：保持静止，只发坐标，不跑轨迹
-    Array.from(state.cones.values()).forEach((cone) => {
+    const tick = state.simTick;
+    const base = config.scene.fallbackCenter || FALLBACK_CENTER;
+    const paths = [
+      [
+        [base[0] - 0.00042, base[1] + 0.00024],
+        [base[0] - 0.0002, base[1] + 0.00032],
+        [base[0] + 0.00002, base[1] + 0.00028],
+        [base[0] + 0.0002, base[1] + 0.00016]
+      ],
+      [
+        [base[0] + 0.0004, base[1] - 0.00018],
+        [base[0] + 0.0002, base[1] - 0.00006],
+        [base[0] + 0.00004, base[1] + 0.00005],
+        [base[0] - 0.00016, base[1] + 0.00012]
+      ]
+    ];
+
+    Array.from(state.cones.values()).forEach((cone, index) => {
+      const path = paths[index] || paths[0];
+      const position = path[tick % path.length];
+      const fallen = index === 1 && tick % 12 >= 7 && tick % 12 <= 8;
+      const warning = index === 0 && tick % 10 >= 5 && tick % 10 <= 6;
+      const roll = fallen ? 76 + Math.sin(tick) * 2 : Math.sin(tick / 2 + index) * 3;
+      const pitch = fallen ? -18 : Math.cos(tick / 3 + index) * 2.5;
       const payload = {
         coneId: cone.coneId,
         ts: Date.now(),
+        mode: fallen ? "ALARM_FALLEN_RED" : warning ? "GUIDE_RIGHT_ARROW" : "STANDBY_DIM",
         online: true,
+        battery: Math.max(62, cone.battery - 0.02),
         position: {
-          lng: cone.position.lng,
-          lat: cone.position.lat,
-          accuracyM: 0.8,
-          source: "sim"
+          lng: position[0],
+          lat: position[1],
+          accuracyM: fallen ? 1.2 : 0.45 + index * 0.18,
+          source: "tcp_gateway"
+        },
+        uwb: {
+          tagId: cone.tagId,
+          quality: fallen ? 0.72 : 0.91 - index * 0.05,
+          accuracyM: fallen ? 0.38 : 0.18 + index * 0.04,
+          anchorsUsed: ["uwb_anchor_01", "uwb_anchor_02", "uwb_anchor_03"],
+          stale: false
+        },
+        gps: {
+          deviceId: cone.gpsDeviceId,
+          accuracyM: 1.4 + index * 0.35,
+          hdop: 0.9 + index * 0.2,
+          coordSys: "GCJ-02",
+          stale: false
+        },
+        imu: {
+          rollDeg: roll,
+          pitchDeg: pitch,
+          yawDeg: 12 + tick * 2,
+          calibrated: true
+        },
+        tilt: {
+          fallen,
+          angleDeg: Math.max(Math.abs(roll), Math.abs(pitch)),
+          thresholdDeg: 55,
+          debounceMs: 600,
+          calibration: "zero_bias_ok"
         },
         health: {
           stale: false,
@@ -553,6 +637,13 @@
       state.lastPayload = { type: "cone.telemetry", payload };
       updateConeFromTelemetry(payload);
     });
+
+    if (tick % 12 === 7) {
+      addLog("模拟事件：cone_02 IMU6050 倾角超过阈值，网关上报倾倒状态。", "danger");
+    }
+    if (tick % 10 === 5) {
+      addLog("模拟事件：cone_01 切换为绕行引导状态。", "info");
+    }
     state.simTick += 1;
     renderAll();
   }

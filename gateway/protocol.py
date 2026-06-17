@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # 下位机上行数据校验
 # ---------------------------------------------------------------------------
 
-_REQUIRED_FIELDS = {"type", "coneId", "lng", "lat"}
+_REQUIRED_FIELDS = {"coneId", "lng", "lat"}
 
 # 设备注册表 — 上位机维护，用于补全前端需要的设备元信息
 _DEVICE_REGISTRY: dict[str, dict[str, Any]] = {
@@ -104,49 +104,12 @@ def build_telemetry(raw: dict[str, Any]) -> dict[str, Any]:
                 "lng": lng,
                 "lat": lat,
                 "accuracyM": float(raw.get("accuracy", 0.8)),
-                "source": "tcp_gateway",
+                "source": str(raw.get("source", raw.get("position_source", "tcp_gateway"))),
             },
             "health": {
                 "stale": False,
                 "lastSeenMs": now_ms,
             },
-        },
-    }
-
-
-def build_gps_position(raw: dict[str, Any]) -> dict[str, Any]:
-    """构建 gps.position 消息。"""
-    cone_id = raw["coneId"]
-    return {
-        "type": "gps.position",
-        "payload": {
-            "coneId": cone_id,
-            "lng": float(raw["lng"]),
-            "lat": float(raw["lat"]),
-            "accuracyM": float(raw.get("gps_accuracy", raw.get("accuracy", 1.6))),
-            "coordSys": raw.get("coordSys", "GCJ-02"),
-            "timestamp": raw.get("ts") or _now_ms(),
-        },
-    }
-
-
-def build_uwb_position(raw: dict[str, Any]) -> dict[str, Any] | None:
-    """构建 uwb.position 消息。需要下位机提供 uwb_x/uwb_y 或 lng/lat。"""
-    cone_id = raw["coneId"]
-    lng = raw.get("uwb_lng", raw.get("lng"))
-    lat = raw.get("uwb_lat", raw.get("lat"))
-    if lng is None or lat is None:
-        return None
-    return {
-        "type": "uwb.position",
-        "payload": {
-            "coneId": cone_id,
-            "lng": float(lng),
-            "lat": float(lat),
-            "accuracyM": float(raw.get("uwb_accuracy", 0.22)),
-            "quality": float(raw.get("uwb_quality", 0.9)),
-            "anchorsUsed": raw.get("uwb_anchors", []),
-            "timestamp": raw.get("ts") or _now_ms(),
         },
     }
 
@@ -267,9 +230,13 @@ def build_route_plan(cone_id: str, waypoints: list[tuple[float, float]]) -> dict
 
 # 路由表：下位机 type → 构建函数列表（一次数据可能触发多条前端消息）
 _ROUTE_MAP: dict[str, list] = {
+    # GPS / UWB 硬件当前不可用时，不再让前端消费单源定位或融合定位。
+    # 只要下位机/调试端能给出最终 lng/lat，就统一包装为 cone.telemetry。
     "telemetry": [build_telemetry],
-    "gps": [build_gps_position],
-    "uwb": [build_uwb_position],
+    "gps": [build_telemetry],
+    "uwb": [build_telemetry],
+    "position": [build_telemetry],
+    "manual": [build_telemetry],
     "imu": [build_imu_raw],
     "tilt": [build_tilt_status],
 }

@@ -4,6 +4,10 @@
 适用范围：前端演示系统、路径规划算法、本地网关、ESP32 智能路锥  
 推荐协议：HTTP / WebSocket 用于前端与算法，MQTT 用于网关与 ESP32，串口/USB 用于 BU04 UWB 基站接入网关
 
+## 当前版本说明
+
+当前项目处于“上位机直接输出最终坐标”的演示模式。GPS / UWB 不参与定位融合，前端地图主位置只消费 `cone.telemetry.payload.position`。`gps.position`、`uwb.position` 和 `fused.position` 仅保留为历史兼容字段，不作为地图主位置来源。
+
 ## 1. 系统通信结构
 
 ```text
@@ -389,8 +393,10 @@ Content-Type: application/json
 前端连接：
 
 ```text
-ws://localhost:8080/ws
+./ws
 ```
+
+前端会将相对地址按当前页面文件夹自动解析为 `ws://当前主机/当前文件夹/ws` 或 `wss://当前主机/当前文件夹/ws`。如果网关单独部署，也可以直接配置为完整地址，例如 `ws://192.168.1.20:8080/ws`。
 
 通用包格式：
 
@@ -953,8 +959,8 @@ GET /api/uwb/status
     "plugins": ["AMap.Scale", "AMap.ToolBar", "AMap.Geocoder"]
   },
   "gateway": {
-    "wsUrl": "ws://localhost:8080/ws",
-    "httpBaseUrl": "http://localhost:8080"
+    "wsUrl": "./ws",
+    "httpBaseUrl": "./api"
   },
   "scene": {
     "name": "重庆大学虎溪校区体育馆周边道路",

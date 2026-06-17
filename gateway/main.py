@@ -382,22 +382,33 @@ async def health_check() -> dict[str, Any]:
 
 @app.post("/api/hardware/gps")
 async def receive_hardware_gps(data: dict[str, Any]) -> dict[str, Any]:
-    """兼容 HTTP GPS 上报接口（调试用）。"""
+    """兼容旧 HTTP GPS 上报接口（调试用）。
+
+    当前 GPS/UWB 不参与定位融合；该接口只把传入的 lng/lat 当作上位机最终展示坐标。
+    """
     required = {"coneId", "lng", "lat"}
     missing = required - data.keys()
     if missing:
         return {"error": f"缺少必要参数: {missing}", "status": "failed"}
 
     states.update_telemetry(data)
+    now_ms = data.get("timestamp") or int(_time.time() * 1000)
     frontend_message = {
-        "type": "gps.position",
+        "type": "cone.telemetry",
         "payload": {
             "coneId": data["coneId"],
-            "lng": float(data["lng"]),
-            "lat": float(data["lat"]),
-            "accuracyM": float(data.get("accuracyM", 1.0)),
-            "coordSys": data.get("coordSys", "GCJ-02"),
-            "timestamp": data.get("timestamp") or int(_time.time() * 1000),
+            "ts": now_ms,
+            "online": True,
+            "position": {
+                "lng": float(data["lng"]),
+                "lat": float(data["lat"]),
+                "accuracyM": float(data.get("accuracyM", data.get("accuracy", 1.0))),
+                "source": data.get("source", "http_gateway"),
+            },
+            "health": {
+                "stale": False,
+                "lastSeenMs": now_ms,
+            },
         },
     }
     await manager.broadcast(json.dumps(frontend_message, ensure_ascii=False))
