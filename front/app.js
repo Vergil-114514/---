@@ -533,68 +533,17 @@
   }
 
   function runSimulationFrame() {
-    const tick = state.simTick;
-    const base = config.scene.fallbackCenter || FALLBACK_CENTER;
-    const paths = [
-      [
-        [base[0] - 0.00042, base[1] + 0.00024],
-        [base[0] - 0.0002, base[1] + 0.00032],
-        [base[0] + 0.00002, base[1] + 0.00028],
-        [base[0] + 0.0002, base[1] + 0.00016]
-      ],
-      [
-        [base[0] + 0.0004, base[1] - 0.00018],
-        [base[0] + 0.0002, base[1] - 0.00006],
-        [base[0] + 0.00004, base[1] + 0.00005],
-        [base[0] - 0.00016, base[1] + 0.00012]
-      ]
-    ];
-
-    Array.from(state.cones.values()).forEach((cone, index) => {
-      const path = paths[index] || paths[0];
-      const position = path[tick % path.length];
-      const fallen = index === 1 && tick % 12 >= 7 && tick % 12 <= 8;
-      const warning = index === 0 && tick % 10 >= 5 && tick % 10 <= 6;
-      const roll = fallen ? 76 + Math.sin(tick) * 2 : Math.sin(tick / 2 + index) * 3;
-      const pitch = fallen ? -18 : Math.cos(tick / 3 + index) * 2.5;
+    // 模拟模式：保持静止，只发坐标，不跑轨迹
+    Array.from(state.cones.values()).forEach((cone) => {
       const payload = {
         coneId: cone.coneId,
         ts: Date.now(),
-        mode: fallen ? "ALARM_FALLEN_RED" : warning ? "GUIDE_RIGHT_ARROW" : "STANDBY_DIM",
         online: true,
-        battery: Math.max(62, cone.battery - 0.02),
         position: {
-          lng: position[0],
-          lat: position[1],
-          accuracyM: fallen ? 1.2 : 0.45 + index * 0.18,
-          source: "uwb_gps_fused"
-        },
-        uwb: {
-          tagId: cone.tagId,
-          quality: fallen ? 0.72 : 0.91 - index * 0.05,
-          accuracyM: fallen ? 0.38 : 0.18 + index * 0.04,
-          anchorsUsed: ["uwb_anchor_01", "uwb_anchor_02", "uwb_anchor_03"],
-          stale: false
-        },
-        gps: {
-          deviceId: cone.gpsDeviceId,
-          accuracyM: 1.4 + index * 0.35,
-          hdop: 0.9 + index * 0.2,
-          coordSys: "GCJ-02",
-          stale: false
-        },
-        imu: {
-          rollDeg: roll,
-          pitchDeg: pitch,
-          yawDeg: 12 + tick * 2,
-          calibrated: true
-        },
-        tilt: {
-          fallen,
-          angleDeg: Math.max(Math.abs(roll), Math.abs(pitch)),
-          thresholdDeg: 55,
-          debounceMs: 600,
-          calibration: "zero_bias_ok"
+          lng: cone.position.lng,
+          lat: cone.position.lat,
+          accuracyM: 0.8,
+          source: "sim"
         },
         health: {
           stale: false,
@@ -604,13 +553,6 @@
       state.lastPayload = { type: "cone.telemetry", payload };
       updateConeFromTelemetry(payload);
     });
-
-    if (tick % 12 === 7) {
-      addLog("模拟事件：cone_02 IMU6050 倾角超过阈值，网关上报倾倒状态。", "danger");
-    }
-    if (tick % 10 === 5) {
-      addLog("模拟事件：cone_01 切换为绕行引导状态。", "info");
-    }
     state.simTick += 1;
     renderAll();
   }
