@@ -1,5 +1,7 @@
 (function () {
   const FALLBACK_CENTER = [106.293186, 29.593694];
+  const REAL_POSITION_DEADBAND_M = 0.8;
+  const REAL_POSITION_JUMP_LIMIT_M = 12;
   const DEFAULT_CONFIG = {
     amap: {
       key: "",
@@ -437,7 +439,6 @@
 
     if (type === "cone.telemetry") updateConeFromTelemetry(payload);
     if (type === "fused.position") updateConePartial(payload.coneId, {
-      position: normalizePosition(payload.position || payload, { ...payload, source: payload.source || "tcp_gateway" }),
       uwb: payload.uwb,
       gps: payload.gps,
       ts: payload.timestamp
@@ -465,13 +466,14 @@
     const coneId = payload.coneId || payload.id;
     if (!coneId || !state.cones.has(coneId)) return;
     const cone = state.cones.get(coneId);
-    const nextPosition = normalizePosition(payload.position, { ...payload, source: payload.source || "tcp_gateway" });
+    const nextPosition = normalizePosition(payload.position || payload, { ...payload, source: payload.source || "tcp_gateway" });
+    const acceptedPosition = shouldAcceptTelemetryPosition(cone, nextPosition, payload) ? nextPosition : null;
     const nextTilt = normalizeTilt(payload.tilt || { fallen: payload.fallen });
     Object.assign(cone, {
       mode: payload.mode || cone.mode,
       online: payload.online !== undefined ? Boolean(payload.online) : cone.online,
       battery: payload.battery ?? cone.battery,
-      position: nextPosition || cone.position,
+      position: acceptedPosition || cone.position,
       uwb: { ...cone.uwb, ...(payload.uwb || {}) },
       gps: { ...cone.gps, ...(payload.gps || {}) },
       imu: { ...cone.imu, ...normalizeImu(payload.imu || {}) },
@@ -479,9 +481,13 @@
       health: { ...cone.health, ...(payload.health || {}), lastSeenMs: Date.now() },
       ts: payload.ts || payload.timestamp || Date.now()
     });
+    if (acceptedPosition) {
+      cone._lastAcceptedRealPosition = state.dataMode === "real" ? { ...acceptedPosition } : cone._lastAcceptedRealPosition;
+      cone._lastAcceptedRealTs = state.dataMode === "real" ? Number(cone.ts) : cone._lastAcceptedRealTs;
+    }
     if (cone.tilt.fallen) cone.mode = "ALARM_FALLEN_RED";
     if (!cone.tilt.fallen) cone._fallenAlerted = false;
-    pushTrace(cone);
+    if (acceptedPosition) pushTrace(cone);
     maybeAlertFallen(cone);
   }
 
@@ -523,7 +529,46 @@
     };
   }
 
-  // 位置稳定性改由上位机负责，前端仅按最终位置展示。
+  function shouldAcceptTelemetryPosition(cone, nextPosition, payload = {}) {
+    if (!nextPosition || !isFiniteCoordinate(nextPosition)) return false;
+    if (state.dataMode !== "real") return true;
+
+    const previous = cone._lastAcceptedRealPosition;
+    if (!previous || !isFiniteCoordinate(previous)) return true;
+
+    const currentTs = Number(payload.ts || payload.timestamp || Date.now());
+    const previousTs = Number(cone._lastAcceptedRealTs || cone.ts || Date.now());
+    const distance = distanceMeters(previous, nextPosition);
+
+    if (distance < REAL_POSITION_DEADBAND_M) return false;
+
+    if (distance > REAL_POSITION_JUMP_LIMIT_M && !isTrustedJumpSource(nextPosition.source)) {
+      const now = Date.now();
+      if (!cone._lastJumpLogAt || now - cone._lastJumpLogAt > 3000) {
+        cone._lastJumpLogAt = now;
+        addLog(`${cone.coneId} 忽略疑似跳点：${formatNumber(distance, 1)} m`, "warning");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  function isTrustedJumpSource(source) {
+    return ["manual_gateway", "http_gateway", "frontend_drag_target"].includes(String(source || ""));
+  }
+
+  function distanceMeters(a, b) {
+    const lat1 = Number(a.lat) * Math.PI / 180;
+    const lat2 = Number(b.lat) * Math.PI / 180;
+    const dLat = (Number(b.lat) - Number(a.lat)) * Math.PI / 180;
+    const dLng = (Number(b.lng) - Number(a.lng)) * Math.PI / 180;
+    const h = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }
+
+  // 前端地图主位置只读取 cone.telemetry.payload.position。
 
   function normalizeImu(imu) {
     return {
