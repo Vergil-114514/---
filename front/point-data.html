@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>点按实验模拟数据可视化</title>
+    <link rel="stylesheet" href="./point-data.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="topbar">
+        <div>
+          <a class="back-link" href="./index.html">返回演示页</a>
+          <h1>点按实验模拟数据可视化</h1>
+          <p>点击成功率、按压时间、点击位置偏移、按压过程偏移、抬起位置偏移</p>
+        </div>
+        <div class="toolbar" aria-label="数据控制">
+          <label>
+            <span>随机种子</span>
+            <input id="seedInput" type="number" value="20260604" />
+          </label>
+          <label>
+            <span>试次数</span>
+            <input id="trialInput" type="number" min="24" max="240" step="12" value="96" />
+          </label>
+          <button id="regenerateBtn" type="button">重新生成</button>
+          <button id="csvBtn" type="button">导出 CSV</button>
+          <button id="jsonBtn" type="button">导出 JSON</button>
+        </div>
+      </header>
+
+      <section class="formula-band" aria-label="指标公式">
+        <div><strong>r_c</strong><span>成功试次 / 总试次</span></div>
+        <div><strong>t_p</strong><span>抬起时刻 - 按下时刻</span></div>
+        <div><strong>s_t</strong><span>sqrt(x_t^2 + y_t^2)</span></div>
+        <div><strong>s_p</strong><span>sqrt(x_p^2 + y_p^2)</span></div>
+        <div><strong>s_l</strong><span>sqrt(x_l^2 + y_l^2)</span></div>
+      </section>
+
+      <section class="metric-grid" aria-label="汇总指标">
+        <article class="metric-card">
+          <span>点击成功率 r_c</span>
+          <strong id="metricSuccess">--</strong>
+          <small id="metricSuccessDetail">--</small>
+        </article>
+        <article class="metric-card">
+          <span>平均按压时间 t_p</span>
+          <strong id="metricPressTime">--</strong>
+          <small>单位：ms</small>
+        </article>
+        <article class="metric-card">
+          <span>平均点击偏移 s_t</span>
+          <strong id="metricTapOffset">--</strong>
+          <small>单位：px</small>
+        </article>
+        <article class="metric-card">
+          <span>平均按压过程偏移 s_p</span>
+          <strong id="metricPressOffset">--</strong>
+          <small>单位：px</small>
+        </article>
+        <article class="metric-card">
+          <span>平均抬起偏移 s_l</span>
+          <strong id="metricLiftOffset">--</strong>
+          <small>单位：px</small>
+        </article>
+      </section>
+
+      <section class="visual-grid">
+        <article class="chart-panel chart-large">
+          <div class="panel-heading">
+            <h2>目标中心偏移散点</h2>
+            <div class="legend">
+              <span><i class="dot tap"></i>点击</span>
+              <span><i class="dot press"></i>按下</span>
+              <span><i class="dot lift"></i>抬起</span>
+              <span><i class="dot fail"></i>失败</span>
+            </div>
+          </div>
+          <canvas id="scatterCanvas" aria-label="目标中心偏移散点图"></canvas>
+        </article>
+
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <h2>偏移均值</h2>
+          </div>
+          <canvas id="offsetCanvas" aria-label="偏移均值柱状图"></canvas>
+        </article>
+
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <h2>按压时间分布</h2>
+          </div>
+          <canvas id="histCanvas" aria-label="按压时间直方图"></canvas>
+        </article>
+
+        <article class="chart-panel chart-large">
+          <div class="panel-heading">
+            <h2>试次趋势</h2>
+          </div>
+          <canvas id="seriesCanvas" aria-label="按压时间试次趋势图"></canvas>
+        </article>
+      </section>
+
+      <section class="data-panel">
+        <div class="panel-heading">
+          <h2>模拟原始数据</h2>
+          <span id="tableCount">--</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>trial</th>
+                <th>target_x</th>
+                <th>target_y</th>
+                <th>x_t</th>
+                <th>y_t</th>
+                <th>s_t</th>
+                <th>x_p</th>
+                <th>y_p</th>
+                <th>s_p</th>
+                <th>x_l</th>
+                <th>y_l</th>
+                <th>s_l</th>
+                <th>t_p</th>
+                <th>success</th>
+              </tr>
+            </thead>
+            <tbody id="dataBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="./point-data.js"></script>
+  </body>
+</html>

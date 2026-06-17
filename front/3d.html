@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>虎溪校区体育馆道路 3D 数字孪生演示</title>
+    <link rel="stylesheet" href="./three-view.css" />
+  </head>
+  <body>
+    <main class="three-shell">
+      <div class="scene-host" id="sceneHost" aria-label="虎溪校区体育馆道路 3D 数字孪生场景"></div>
+
+      <header class="hud-top">
+        <div>
+          <a class="back-link" href="./index.html">返回管理端</a>
+          <h1>虎溪校区体育馆道路 3D 数字孪生演示</h1>
+          <p id="sceneSummary">重庆大学虎溪校区体育馆周边道路 · 正常待命</p>
+        </div>
+        <div class="hud-actions">
+          <button id="autoDemoBtn" type="button">开始演示</button>
+          <button id="resetSceneBtn" type="button">重置</button>
+        </div>
+      </header>
+
+      <aside class="hud-panel">
+        <section>
+          <div class="panel-title">
+            <h2>当前场景</h2>
+            <span id="activeSceneName">正常待命</span>
+          </div>
+          <p id="sceneDescription">路锥沿虎溪体育馆入口广场与东侧校园道路低亮布设。</p>
+        </section>
+
+        <section>
+          <div class="panel-title">
+            <h2>选中设备</h2>
+            <span id="selectedConeId">cone_01</span>
+          </div>
+          <dl class="device-grid">
+            <div><dt>状态</dt><dd id="selectedConeMode">待命</dd></div>
+            <div><dt>电量</dt><dd id="selectedConeBattery">--</dd></div>
+            <div><dt>人流</dt><dd id="selectedConeCrowd">--</dd></div>
+            <div><dt>坐标</dt><dd id="selectedConePosition">--</dd></div>
+          </dl>
+        </section>
+
+        <section>
+          <div class="panel-title">
+            <h2>集群命令</h2>
+            <span id="commandCount">6 条</span>
+          </div>
+          <p class="gateway-status" id="gatewayStatus">网关在线 · 链路 6/6 · 延迟 --</p>
+          <pre id="commandPreview"></pre>
+        </section>
+      </aside>
+
+      <nav class="scene-tabs" id="sceneTabs" aria-label="3D 场景切换"></nav>
+    </main>
+
+    <script src="./assets/vendor/three.min.js"></script>
+    <script src="./three-demo.js"></script>
+  </body>
+</html>

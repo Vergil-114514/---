@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>虎溪校区智能路锥真实地图演示</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>虎溪校区智能路锥真实地图演示</h1>
+            <p>UWB + GPS 融合定位 · IMU6050 倾倒状态 · 双路锥集群演示</p>
+          </div>
+        </div>
+
+        <div class="top-actions" aria-label="演示控制">
+          <div class="scene-readout">
+            <span>当前场景</span>
+            <strong id="currentSceneName">重庆大学虎溪校区交叉创新中心</strong>
+          </div>
+          <div class="mode-switch" aria-label="数据源切换">
+            <button class="mode-chip active" id="simModeBtn" type="button" data-mode="sim">模拟数据</button>
+            <button class="mode-chip" id="realModeBtn" type="button" data-mode="real">真实数据</button>
+          </div>
+          <button class="mode-btn" id="reconnectBtn" type="button">重连网关</button>
+          <button class="mode-btn" id="centerMapBtn" type="button">回到场景</button>
+          <a class="mode-btn" href="./point-data.html">点按数据</a>
+          <a class="mode-btn" href="./3d.html">3D演示</a>
+        </div>
+      </header>
+
+      <div class="alert-stack" id="alertStack" aria-live="polite"></div>
+
+      <main class="dashboard">
+        <section class="map-panel" aria-label="重庆大学虎溪校区交叉创新中心周边真实地图">
+          <div class="map-toolbar">
+            <div>
+              <h2>真实地图态势图</h2>
+              <p id="sceneDescription">地图加载后，将显示重庆大学虎溪校区交叉创新中心周边道路与两只智能路锥。</p>
+            </div>
+            <div class="legend">
+              <span><i class="legend-dot idle"></i>待命</span>
+              <span><i class="legend-dot guide"></i>引导</span>
+              <span><i class="legend-dot warning"></i>预警</span>
+              <span><i class="legend-dot fallen"></i>倾倒</span>
+              <span><i class="legend-dot offline"></i>离线</span>
+            </div>
+          </div>
+
+          <div class="map-stage">
+            <div id="realMap" class="real-map" role="application" aria-label="高德真实地图"></div>
+            <div class="map-loading" id="mapLoading">
+              <strong>正在加载高德地图</strong>
+              <span>读取本地配置并定位到重庆大学虎溪校区交叉创新中心周边</span>
+            </div>
+            <div class="map-error hidden" id="mapError"></div>
+          </div>
+        </section>
+
+        <aside class="side-panel">
+          <section class="control-card gateway-card">
+            <div class="section-heading">
+              <h2>数据链路</h2>
+              <span id="dataModeLabel">模拟数据</span>
+            </div>
+            <dl class="link-grid">
+              <div>
+                <dt>网关</dt>
+                <dd id="gatewayStatus">未连接</dd>
+              </div>
+              <div>
+                <dt>WebSocket</dt>
+                <dd id="gatewayUrl">--</dd>
+              </div>
+              <div>
+                <dt>地图坐标</dt>
+                <dd>GCJ-02</dd>
+              </div>
+              <div>
+                <dt>场景范围</dt>
+                <dd id="mapScope">重庆大学虎溪校区交叉创新中心</dd>
+              </div>
+            </dl>
+            <p class="card-note" id="gatewayNote">当前使用模拟数据，结构与真实网关推送保持一致。</p>
+          </section>
+
+          <section class="control-card">
+            <div class="section-heading">
+              <h2>路锥状态</h2>
+              <span id="onlineCount">2 / 2 在线</span>
+            </div>
+            <div class="cone-list" id="coneList"></div>
+          </section>
+
+          <section class="control-card detail-card">
+            <div class="section-heading">
+              <h2>选中路锥</h2>
+              <span id="selectedConeId">cone_01</span>
+            </div>
+            <dl class="detail-grid">
+              <div><dt>工作模式</dt><dd id="selectedMode">--</dd></div>
+              <div><dt>电量</dt><dd id="selectedBattery">--</dd></div>
+              <div><dt>融合坐标</dt><dd id="selectedPosition">--</dd></div>
+              <div><dt>定位精度</dt><dd id="selectedAccuracy">--</dd></div>
+              <div><dt>UWB质量</dt><dd id="selectedUwb">--</dd></div>
+              <div><dt>GPS精度</dt><dd id="selectedGps">--</dd></div>
+              <div><dt>Roll / Pitch</dt><dd id="selectedImu">--</dd></div>
+              <div><dt>倾倒状态</dt><dd id="selectedTilt">--</dd></div>
+            </dl>
+            <p class="card-note" id="selectedNote">点击地图标记或状态列表可切换选中对象。</p>
+          </section>
+
+          <section class="control-card command-card">
+            <div class="section-heading">
+              <h2>前端接收样例</h2>
+              <span id="payloadType">cone.telemetry</span>
+            </div>
+            <pre id="payloadPreview"></pre>
+          </section>
+        </aside>
+      </main>
+
+      <footer class="bottom-panel">
+        <section class="insight-card">
+          <h2>系统数据链路</h2>
+          <div class="loop-steps">
+            <span>BU04 基站</span>
+            <span>BU03 标签</span>
+            <span>网关融合</span>
+            <span>地图展示</span>
+            <span>异常处置</span>
+          </div>
+        </section>
+
+        <section class="log-card">
+          <div class="section-heading">
+            <h2>事件日志</h2>
+            <button id="clearLogBtn" class="text-btn" type="button">清空</button>
+          </div>
+          <div class="event-log" id="eventLog"></div>
+        </section>
+      </footer>
+    </div>
+
+    <script src="./config.local.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
