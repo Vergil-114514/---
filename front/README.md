@@ -31,7 +31,7 @@ smart-cone-demo/index.html
 上位机项目内打开：
 
 ```text
-上位机/----main/front/index.html
+front/index.html
 ```
 
 真实数据模式连接：
@@ -63,5 +63,5 @@ ws://localhost:8080/ws
 接口合同见：
 
 ```text
-smart-cone-demo/docs/frontend-gateway-contract.json
+front/docs/frontend-gateway-contract.json
 ```
